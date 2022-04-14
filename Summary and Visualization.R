@@ -24,19 +24,20 @@ for (i in 1:length(packages)) {
   library(packages[i], character.only=TRUE)
 }
 rm(packages)
-setwd("C:/Users/hammerhao/Downloads")
 load("nba.full.RData")
-summary(nba)
-summary(nba$salary)
-summary(nba$salary[nba$yrend==2018])[4]
-for (i in 2001:2019){
-  x <- summary(nba$salary[nba$yrend==i])
-  x
-}
-meansalary <- rep(NA, times=19)
-for (i in 2001:2019){
-  meansalary[i-2000] = mean(nba$salary[nba$yrend==i])
-}
+
+stargazer(nba 
+          , summary = TRUE   # We want summary only
+          , median =  TRUE
+          , type = "html" # Type of output - text, HTML or LaTeX
+          , title = "Descriptive statistics" #Title of my output
+          , digits = 2
+          , out = "summary.html" # File name
+)
+dataForSummary <- subset(nba, select = -c(playerid, teamid, season, teamfullsal, player, team, position))
+
+summary(dataForSummary)
+stargazer(nba, type = "html",summary = TRUE, median = TRUE, title = "NBA Numerical Summary", digits = 2, out = "summary2.html")
 #Histogram of salary
 ggplot(nba, aes(x=salary))+
   geom_histogram(bins = 50
