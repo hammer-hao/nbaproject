@@ -1,2 +1,2 @@
 # nbaproject
-luke nixie !
+Ml for ECON R project
