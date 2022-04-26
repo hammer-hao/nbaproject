@@ -34,7 +34,7 @@ stargazer(nba
           , digits = 2
           , out = "summary.html" # File name
 )
-dataForSummary <- subset(nba, select = -c(playerid, teamid, season, teamfullsal, player, team, position))
+dataForSummary <- subset(nba, select = -c(playerid, teamid, season, teamfullsal, player, team))
 
 summary(dataForSummary)
 stargazer(nba, type = "html",summary = TRUE, median = TRUE, title = "NBA Numerical Summary", digits = 2, out = "summary2.html")
