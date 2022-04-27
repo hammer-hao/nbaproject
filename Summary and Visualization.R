@@ -11,6 +11,7 @@ packages <- c("haven" # To import *.dta files
               , "car" # For doing F-tests
               , "sandwich" # For robust standard errors
               , "lmtest" # For robust standard errors
+              , "leaps"
               , "MASS" # For stepwise selection
               , "ggrepel"   # For labels in scatter plots
 )

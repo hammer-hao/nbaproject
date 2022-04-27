@@ -12,8 +12,10 @@ packages <- c("haven" # To import *.dta files
               , "sandwich" # For robust standard errors
               , "lmtest" # For robust standard errors
               , "boot"
+              , "leaps"
               , "MASS" # For stepwise selection
               , "ggrepel"   # For labels in scatter plots
+              , "ISLR"
 )
 for (i in 1:length(packages)) {
   if (!packages[i] %in% rownames(installed.packages())) {
@@ -26,8 +28,11 @@ for (i in 1:length(packages)) {
 }
 rm(packages)
 load("nba.full.RData")
-nba.data <- subset(nba, select = -c(playerid, teamid, season, teamfullsal, player, team, salary.lead, fg, fga, trb))
+nba.data <- subset(nba, select = -c(playerid, teamid, season, teamfullsal, player, team, salary.lead, fg, fga, trb, salary.team.total, salary.team.mean, salary.team.median))
 nba.data$position <- as.factor(nba.data$position)
+nba.data$fg3.pct[nba.data$fg3a==0] <- 0
+nba.data$ft.pct[nba.data$fta==0] <- 0
+nba.data <- na.omit(nba.data)
 nba.data.full <- model.matrix(salary ~ .^2, nba.data)
 View(nba.data.full)
 nba.data.full <- as.data.frame(nba.data.full[,-1]) 
@@ -40,11 +45,10 @@ nba.cv.fit <- data.frame(poly = seq.int(from = 1, to = 5, by = 1)
                              , mse = NA
 )
 
-formula <- "salary ~ yrend"
-for (i in 3:ncol(nba.data)){
-    formula <- paste(formula, names(nba.data)[i], sep=" + ")
-}
-paste(c(names(nba.data)), sep="+")
+formula <- "salary ~ fg.pct + orb + ast + stl + blk + orb + drb + fg2 + fg2a + fg3 + 
+            fg3a + fg2.pct + fg3.pct + ft + fta + pf + g + gs + tov + pts"
+formula <- gsub("\n|  ", "", formula)
+model.NBA <- lm(as.formula(formula), data = nba.data)
 for (i in 1:5) { # The inner loop cycles through polynomials
   # Adjust the formula
   formula.cv <- paste0(formula
@@ -57,5 +61,14 @@ for (i in 1:5) { # The inner loop cycles through polynomials
   # Put MSE back into main dataframe
   nba.cv.fit$mse[nba.cv.fit$poly == i] <- mse
 }
+formula <- "salary ~ fg.pct + orb + ast + stl + blk + orb + drb + 
+            fg2 + fg2a + fg3 + fg3a + fg2.pct + fg3.pct + ft + fta + 
+            pf + g + gs + tov + pts + poly(mp, degree = 4, raw = TRUE) + 
+            poly(age, degree = 4, raw = TRUE)"
+formula <- gsub("\n|  ", "", formula) 
+nba.inference.model <- lm(as.formula(formula), data=nba.data)
+nba.inference.model2 <- regsubsets(as.formula(formula), nba.data, nvmax=NULL, method="backward")
+which.max(summary(nba.inference.model2)$adjr2)
 
-
+nba.inference.model2 <- regsubsets(as.formula(formula), nba.data, nvmax=NULL, method="forward")
+which.max(summary(nba.inference.model2)$adjr2)
