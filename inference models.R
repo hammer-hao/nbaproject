@@ -27,73 +27,60 @@ for (i in 1:length(packages)) {
   library(packages[i], character.only=TRUE)
 }
 rm(packages)
+#loading the dataset
 load("nba.full.RData")
-nba.data <- subset(nba, select = -c(playerid, teamid, season, teamfullsal, player, team, salary.lead, fg, fga, trb, salary.team.total, salary.team.mean, salary.team.median))
-nba.data$position <- as.factor(nba.data$position)
+#getting rid of variables we dont need and those with too many NAs
+nba.data <- subset(nba, select = -c(playerid, teamid, season, teamfullsal, 
+                                    player, team, salary.lead, fg, fga, trb, 
+                                    salary.team.total, salary.team.mean, 
+                                    salary.team.median, position))
+#getting rid of some NA's
 nba.data$fg3.pct[nba.data$fg3a==0] <- 0
 nba.data$ft.pct[nba.data$fta==0] <- 0
+#now we remove all observations with missing values
 nba.data <- na.omit(nba.data)
-nba.data.full <- model.matrix(salary ~ .^2, nba.data)
-View(nba.data.full)
-nba.data.full <- as.data.frame(nba.data.full[,-1]) 
-nba.data.full$salary <- nba.data$salary
-#running OLS with all interaction terms
-nba.reg <- lm(salary ~ .^2, data=nba.data)
 
-#Using CV to determine best polynomial
-nba.cv.fit <- data.frame(poly = seq.int(from = 1, to = 5, by = 1)
-                             , mse = NA
-)
+#From here we develop our inference model, fist we start with OLS on all the relevant veriables
+nba.best.ols <- lm(salary~., nba.data)
+summary(nba.best.ols)
 
-formula <- "salary ~ fg.pct + orb + ast + stl + blk + orb + drb + fg2 + fg2a + fg3 + 
-            fg3a + fg2.pct + fg3.pct + ft + fta + pf + g + gs + tov + pts"
-formula <- gsub("\n|  ", "", formula)
-model.NBA <- lm(as.formula(formula), data = nba.data)
-for (i in 1:5) { # The inner loop cycles through polynomials
-  # Adjust the formula
-  formula.cv <- paste0(formula
-                       , " + poly(mp, degree = ", i, ", raw = TRUE)"
-                       , " + poly(age, degree = ", i, ", raw = TRUE)"
-  )
-  model.cv <- glm(as.formula(formula.cv), data = nba.data)
-  #  Calculate MSE from CV
-  mse <- cv.glm(data = nba.data, glmfit = model.cv, K = 10)$delta[1]
-  # Put MSE back into main dataframe
-  nba.cv.fit$mse[nba.cv.fit$poly == i] <- mse
-}
-formula <- "salary ~ fg.pct + orb + ast + stl + blk + orb + drb + 
-            fg2 + fg2a + fg3 + fg3a + fg2.pct + fg3.pct + ft + fta + 
-            pf + g + gs + tov + pts + poly(mp, degree = 4, raw = TRUE) + 
-            poly(age, degree = 4, raw = TRUE)"
-formula <- gsub("\n|  ", "", formula) 
-nba.inference.model <- lm(as.formula(formula), data=nba.data)
-nba.inference.model2 <- regsubsets(as.formula(formula), nba.data, nvmax=NULL, method="backward")
-summary(nba.inference.model2)$adjr2
-plot(summary(nba.inference.model2)$adjr2)
-numofcoeffs2 <- which.max(summary(nba.inference.model2)$adjr2)
-round(coef(nba.inference.model2, numofcoeffs2),5)
-nba.inference.model3 <- regsubsets(as.formula(formula), nba.data, nvmax=NULL, method="forward")
-numofcoeffs3 <- which.max(summary(nba.inference.model3)$adjr2)
-plot(summary(nba.inference.model3)$adjr2)
-round(coef(nba.inference.model3, numofcoeffs3),5)
-#making a formula generating function
+#There are way too many coefficients and the result is hard to interpret, there are also some 
+#very high t values as well. We use stepwise selection to get rid of some of those stressors that
+#are too insignificant
+
+nba.backward <- regsubsets(salary~., nba.data, nvmax=NULL, method="backward")
+
+#plotting the r2 value.
+plot(summary(nba.backward)$adjr2)
+which.max(summary(nba.backward)$adjr2)
+#although R^2 is highest when there are 24 variables, we can see from the graph that
+# n=10 is good enough for an inference model, and the economic interpretation should be much clearer.
+#now we try if forward selection method gives us better rsquared:
+nba.forward <- regsubsets(salary~., nba.data, nvmax=NULL, method="forward")
+#plotting the r2 value.
+plot(summary(nba.forward)$adjr2)
+which.max(summary(nba.forward)$adjr2)
+#seeing the difference
+summary(nba.backward)$adjr2[10]-summary(nba.forward)$adjr2[10]
+#backward selection does a tiny bit better job at explaining the variation in salary when n=10.
+#now I've copied the formula generating function from the lecture codes:
 get.model.formula <- function(id, reg, outcome){
   # Identify all variables 
   vars <- summary(reg)$which[id,-1]
   # Get model predictors used in model with id
-  predictors <- names(which(vars == TRUE))[1:(id-8)]
+  predictors <- names(which(vars == TRUE))
   predictors <- paste(predictors, collapse = " + ")
   # Build model formula
-  formula <- as.formula(paste0(outcome, " ~ ", predictors, " + ", "poly(mp, degree = 4, raw = TRUE) + 
-            poly(age, degree = 4, raw = TRUE)"))
+  formula <- as.formula(paste0(outcome, " ~ ", predictors))
   return(formula)
 }
-reg.best.backward <- lm(get.model.formula(numofcoeffs2, nba.inference.model2, "salary"), 
+#now we compare the coefficients in those regressions to see if the interpretation gets easier.
+reg.best.backward <- lm(get.model.formula(10, nba.backward, "salary"), 
                         nba.data)
-reg.best.forward <- lm(get.model.formula(numofcoeffs3, nba.inference.model3, "salary"), 
+reg.best.forward <- lm(get.model.formula(10, nba.forward, "salary"), 
                         nba.data)
-reg.best.ols <- nba.inference.model
-stargazer(reg.best.ols, reg.best.forward, reg.best.backward
+
+stargazer(nba.best.ols, reg.best.forward, reg.best.backward
           , column.labels = c("OLS", "Forward", "Backward")
           , dep.var.labels.include = FALSE
           , dep.var.caption  = ""
@@ -102,3 +89,64 @@ stargazer(reg.best.ols, reg.best.forward, reg.best.backward
           , align = TRUE, single.row = TRUE, multicolumn = TRUE
           , out = "regs.html"
 )
+
+#Now we've adopted the model from backwards regression, we want to add some
+#polynomial terms to age since we believe that to be mattering in the data
+formula <- get.model.formula(10, nba.backward, "salary")
+#lets see first if what the residuals look like in the model:
+residualPlots(reg.best.backward)
+#Just as we expected, age is the only variable that needs a polynomial term,
+#we find the best polynomial term to use here using CV, but we don't necessarily
+#want the best degree, just a balance between accuracy and difficulty of interpretation.
+
+#Using CV to determine best polynomial
+nba.cv.fit <- data.frame(poly = seq.int(from = 1, to = 5, by = 1)
+                         , mse = NA
+)
+formula <- "salary ~ yrend + age + gs + mp + fg.pct + fg2a + efg.pct + drb + ast + pts"
+model.NBA <- lm(as.formula(formula), data = nba.data)
+for (i in 1:5) { # The inner loop cycles through polynomials
+  # Adjust the formula
+  formula.cv <- paste(formula, " + poly(age, degree = ", i, ", raw = TRUE)", sep="")
+  # Estimate the model
+  model.cv <- glm(as.formula(formula.cv), data = nba.data)
+  #  Calculate MSE from CV
+  mse <- cv.glm(data = nba.data, glmfit = model.cv, K = 10)$delta[1]
+  # Put MSE back into main dataframe
+  nba.cv.fit$mse[nba.cv.fit$poly == i] <- mse
+}
+#how are the errors behaving as we add more polynimials?
+ggplot(nba.cv.fit, aes(x = poly
+                     , y = mse  
+)
+) +
+  geom_point(color = "darkgreen"
+             , fill = "lightblue"
+             , size = 5
+             , shape = 21         
+             , alpha = 1          
+  ) +
+  labs(title = "MSE in k-fold validation with nth degree polynomial"
+       , subtitle = ""
+       , x = "n"
+       , y = "MSE"
+  ) +
+  theme_bw()
+#although 4th degree polynomial makes it quite hard to interpret, but it does significantly
+#lower our errors so we are going to add it in.
+formula <- "salary ~ yrend + age + gs + mp + fg.pct + fg2a + efg.pct + drb + ast + pts + 
+            poly(age, degree = 4, raw = TRUE)"
+formula <- gsub("\n|  ", "", formula)
+reg.best.backward.withpoly <- lm(as.formula(formula), nba.data)
+reg.best.backward.withpoly2 <- lm(as.formula("salary ~ yrend + age + gs + mp + fg.pct + fg2a + efg.pct + drb + ast + pts + 
+                                             poly(age, degree = 2, raw = TRUE)"), nba.data)
+stargazer(reg.best.backward, reg.best.backward.withpoly, reg.best.backward.withpoly2
+          , column.labels = c("Backward", "Backward+AgePolynomials", "Backward+AgePolynomials(n=2)")
+          , dep.var.labels.include = FALSE
+          , dep.var.caption  = ""
+          , type = "html", style = "default", digits = 2
+          , no.space = TRUE, report = "vc*", omit.stat = c("ser","f", "rsq")
+          , align = TRUE, single.row = TRUE, multicolumn = TRUE
+          , out = "regs2.html"
+)
+#And that's it for our inference model, now on to the prediction model.
