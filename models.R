@@ -68,7 +68,30 @@ formula <- "salary ~ fg.pct + orb + ast + stl + blk + orb + drb +
 formula <- gsub("\n|  ", "", formula) 
 nba.inference.model <- lm(as.formula(formula), data=nba.data)
 nba.inference.model2 <- regsubsets(as.formula(formula), nba.data, nvmax=NULL, method="backward")
-which.max(summary(nba.inference.model2)$adjr2)
+summary(nba.inference.model2)$adjr2
+plot(summary(nba.inference.model2)$adjr2)
+numofcoeffs2 <- which.max(summary(nba.inference.model2)$adjr2)
+round(coef(nba.inference.model2, numofcoeffs2),5)
+nba.inference.model3 <- regsubsets(as.formula(formula), nba.data, nvmax=NULL, method="forward")
+numcoeffs3 <- which.max(summary(nba.inference.model3)$adjr2)
+plot(summary(nba.inference.model3)$adjr2)
+round(coef(nba.inference.model3, numofcoeffs3),5)
+#making a formula generating function
+get.model.formula <- function(id, reg, outcome){
+  # Identify all variables 
+  vars <- summary(reg)$which[id,-1]
+  # Get model predictors used in model with id
+  predictors <- names(which(vars == TRUE))[1:(id-8)]
+  predictors <- paste(predictors, collapse = " + ")
+  # Build model formula
+  formula <- as.formula(paste0(outcome, " ~ ", predictors, "poly(mp, degree = 4, raw = TRUE) + 
+            poly(age, degree = 4, raw = TRUE)"))
+  return(formula)
+}
+formula <- as.formula(get.model.formula(numofcoeffs2, nba.inference.model2, "salary"))
+reg.best.backward <- lm(formula=formula, data=nba.data)
 
-nba.inference.model2 <- regsubsets(as.formula(formula), nba.data, nvmax=NULL, method="forward")
-which.max(summary(nba.inference.model2)$adjr2)
+
+summary(reg.best.backward)
+reg.best.OLS <- lm(Outstate ~ ., data.full.train)
+summary(nba.inference.model)
