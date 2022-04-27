@@ -73,7 +73,7 @@ plot(summary(nba.inference.model2)$adjr2)
 numofcoeffs2 <- which.max(summary(nba.inference.model2)$adjr2)
 round(coef(nba.inference.model2, numofcoeffs2),5)
 nba.inference.model3 <- regsubsets(as.formula(formula), nba.data, nvmax=NULL, method="forward")
-numcoeffs3 <- which.max(summary(nba.inference.model3)$adjr2)
+numofcoeffs3 <- which.max(summary(nba.inference.model3)$adjr2)
 plot(summary(nba.inference.model3)$adjr2)
 round(coef(nba.inference.model3, numofcoeffs3),5)
 #making a formula generating function
@@ -84,14 +84,21 @@ get.model.formula <- function(id, reg, outcome){
   predictors <- names(which(vars == TRUE))[1:(id-8)]
   predictors <- paste(predictors, collapse = " + ")
   # Build model formula
-  formula <- as.formula(paste0(outcome, " ~ ", predictors, "poly(mp, degree = 4, raw = TRUE) + 
+  formula <- as.formula(paste0(outcome, " ~ ", predictors, " + ", "poly(mp, degree = 4, raw = TRUE) + 
             poly(age, degree = 4, raw = TRUE)"))
   return(formula)
 }
-formula <- as.formula(get.model.formula(numofcoeffs2, nba.inference.model2, "salary"))
-reg.best.backward <- lm(formula=formula, data=nba.data)
-
-
-summary(reg.best.backward)
-reg.best.OLS <- lm(Outstate ~ ., data.full.train)
-summary(nba.inference.model)
+reg.best.backward <- lm(get.model.formula(numofcoeffs2, nba.inference.model2, "salary"), 
+                        nba.data)
+reg.best.forward <- lm(get.model.formula(numofcoeffs3, nba.inference.model3, "salary"), 
+                        nba.data)
+reg.best.ols <- nba.inference.model
+stargazer(reg.best.ols, reg.best.forward, reg.best.backward
+          , column.labels = c("OLS", "Forward", "Backward")
+          , dep.var.labels.include = FALSE
+          , dep.var.caption  = ""
+          , type = "html", style = "default", digits = 2
+          , no.space = TRUE, report = "vc*", omit.stat = c("ser","f", "rsq")
+          , align = TRUE, single.row = TRUE, multicolumn = TRUE
+          , out = "regs.html"
+)
