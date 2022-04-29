@@ -51,17 +51,17 @@ summary(nba.best.ols)
 nba.backward <- regsubsets(salary~., nba.data, nvmax=NULL, method="backward")
 
 #plotting the r2 value.
-plot(summary(nba.backward)$adjr2)
-which.max(summary(nba.backward)$adjr2)
+plot(summary(nba.backward)$bic)
+which.min(summary(nba.backward)$bic)
 #although R^2 is highest when there are 24 variables, we can see from the graph that
 # n=10 is good enough for an inference model, and the economic interpretation should be much clearer.
 #now we try if forward selection method gives us better rsquared:
 nba.forward <- regsubsets(salary~., nba.data, nvmax=NULL, method="forward")
 #plotting the r2 value.
-plot(summary(nba.forward)$adjr2)
-which.max(summary(nba.forward)$adjr2)
+plot(summary(nba.forward)$bic)
+which.min(summary(nba.forward)$bic)
 #seeing the difference
-summary(nba.backward)$adjr2[10]-summary(nba.forward)$adjr2[10]
+summary(nba.backward)$bic[16]-summary(nba.forward)$bic[17]
 #backward selection does a tiny bit better job at explaining the variation in salary when n=10.
 #now I've copied the formula generating function from the lecture codes:
 get.model.formula <- function(id, reg, outcome){
@@ -75,9 +75,9 @@ get.model.formula <- function(id, reg, outcome){
   return(formula)
 }
 #now we compare the coefficients in those regressions to see if the interpretation gets easier.
-reg.best.backward <- lm(get.model.formula(10, nba.backward, "salary"), 
+reg.best.backward <- lm(get.model.formula(which.min(summary(nba.backward)$bic), nba.backward, "salary"), 
                         nba.data)
-reg.best.forward <- lm(get.model.formula(10, nba.forward, "salary"), 
+reg.best.forward <- lm(get.model.formula(which.min(summary(nba.forward)$bic), nba.forward, "salary"), 
                         nba.data)
 
 stargazer(nba.best.ols, reg.best.forward, reg.best.backward
@@ -115,23 +115,13 @@ for (i in 1:5) { # The inner loop cycles through polynomials
   # Put MSE back into main dataframe
   nba.cv.fit$mse[nba.cv.fit$poly == i] <- mse
 }
+nba.cv.fit$mse <- nba.cv.fit$mse/1000000000000
 #how are the errors behaving as we add more polynimials?
-ggplot(nba.cv.fit, aes(x = poly
-                     , y = mse  
-)
-) +
-  geom_point(color = "darkgreen"
-             , fill = "lightblue"
-             , size = 5
-             , shape = 21         
-             , alpha = 1          
-  ) +
-  labs(title = "MSE in k-fold validation with nth degree polynomial"
-       , subtitle = ""
-       , x = "n"
-       , y = "MSE"
-  ) +
-  theme_bw()
+p<-ggplot(data=nba.cv.fit, aes(x=poly, y=mse)) +
+  geom_bar(stat="identity", color="blue", fill="lightblue")+
+  theme_bw()+
+  coord_cartesian(ylim=c(11.5,12.5))
+p
 #although 4th degree polynomial makes it quite hard to interpret, but it does significantly
 #lower our errors so we are going to add it in.
 formula <- "salary ~ yrend + age + gs + mp + fg.pct + fg2a + efg.pct + drb + ast + pts + 
