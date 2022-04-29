@@ -32,7 +32,7 @@ rm(packages)
 load("nba.full.RData")
 
 
-nba.data <- subset(nba, select = -c(playerid, teamid, season, teamfullsal, player, 
+nba.data <- subset(nba, select = -c(playerid, teamid, season, teamfullsal, 
                                     team, salary.lead, fg, fga, trb, salary.team.total, 
                                     salary.team.mean, salary.team.median, position))
 nba.data$fg3.pct[nba.data$fg3a==0] <- 0
@@ -43,9 +43,24 @@ View(nba.data)
 
 ##################################
 
-nba.train <- sample(nrow(nba.data), 0.8*nrow(nba.data))
-data.train <- nba.data[nba.train, ]
-data.test <- nba.data[-nba.train, ]
+View(nba.data)
+nba.data$player <- as.factor(nba.data$player)
+numplayerstrain <- length(levels(nba.data$player))
+set.seed(1500)
+nba.data$row <- c(1:nrow(nba.data))
+players.train <- sample(numplayerstrain, 
+                        0.8*numplayerstrain,
+                        replace = FALSE)
+playernames.train <- levels(nba.data$player)[players.train]
+nba.trainrows <- c()
+for (i in 1:nrow(nba.data)){
+  if(nba.data$player[nba.data$row==i]%in%playernames.train){
+    nba.trainrows <- c(nba.trainrows, i)
+  }
+}
+nba.data <- nba.data[,!(names(nba.data)%in%c("row", "player"))]
+data.train <- nba.data[nba.trainrows,]
+data.test <- nba.data[-nba.trainrows,]
 
 #################################
 
@@ -228,7 +243,7 @@ stargazer(results, summary = FALSE
 #create a model matrix object with test data for each regression type
 data.full.test <- model.matrix(salary ~ .^2, data.test)[,-1]
 # create a predictions results dataframe
-prediction<- data.frame( salary = data.test$salary)
+prediction<- data.frame(salary = data.test$salary)
 
 # Calculate predictions
 # OLS:
@@ -275,7 +290,3 @@ accuracy
 # Relative MSE of everybody with OLS as a baseline
 accuracy$MSE.relative <- accuracy$MSE/accuracy$MSE[accuracy$model == "OLS"]
 accuracy
-
-
-
-
